@@ -10,10 +10,12 @@ var dbemitter = require('../main')
   , events = require("events")
   , base64_encode = require('base64').encode
   , Buffer = require('buffer').Buffer
+  , mimetypes = require('./mimetypes')
   ;
 
 var db = 'http://localhost:5984/pizza'
   , h = {'content-type':'application/json', 'accept':'application/json'}
+  , converted = []
   ;
   
 var emitter = dbemitter.createCouchDBEmitter(db);
@@ -25,20 +27,14 @@ emitter.on('change', function (change) {
     
   if( attachments ) {
     for ( var attachment in attachments ) {
-      resize(db + "/" + doc._id + "/" + attachment);
+      // if ( attachments[attachment].length > 1000000) {
+        if ( converted.indexOf(doc._id) == -1 ) {
+          resize(db + "/" + doc._id + "/" + attachment, doc);
+        }
+      // } 
     }
   }
 })
-
-function resize(uri) {
-  download(uri, function(filename) {
-    im.convert([filename, '-resize', '700', filename], 
-    function(err, stdout, stderr) {
-      if (err) throw err;
-      upload(filename, uri);
-    })
-  })
-}
 
 function download(uri, callback) {
   var host = url.parse(uri).hostname
@@ -66,19 +62,28 @@ function download(uri, callback) {
   });
 }
 
-var toAttachment = function(file, cb) {
-  fs.readFile(file, 'binary', function (er, data) {
-    if (er) return cb && cb(er, data);
-    var ext = path.extname(file).substr(1);
-    var buf = new Buffer(data);
-    cb && cb(null, {
-      content_type: mime.lookup(ext),
-      data: base64_encode(buf)
-    });
+function resize(uri, doc) {
+  download(uri, function(filename) {
+    im.convert([filename, '-resize', '700', filename], 
+    function(err, stdout, stderr) {
+      if (err) throw err;
+      upload(filename, uri, doc);
+    })
   })
-};
+}
 
-
-function upload(filename, uri) {
-  
+function upload(filename, uri, doc) {
+  fs.readFile(filename, 'binary', function (er, data) {
+    if (er) return cb && cb(er);
+    request({
+      method: 'PUT',
+      encoding: 'binary',
+      uri: uri + '?rev=' + doc._rev,
+      body: data,
+    }, function (err, resp, body) {
+      if (err) throw err;
+      if (resp.statusCode !== 201) throw new Error("Could not save new image\n"+body)
+      converted.push(doc._id);
+    });
+  });
 }
