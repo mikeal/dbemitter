@@ -15,10 +15,12 @@ var createCouchDBEmitter = function (uri) {
   
   changesStream.buffer = '';
   changesStream.write = function (chunk) {
+    
     var line
       , change
       ;
     changesStream.buffer += chunk.toString();
+    
     while (changesStream.buffer.indexOf('\n') !== -1) {
       line = changesStream.buffer.slice(0, changesStream.buffer.indexOf('\n'));
       if (line.length > 1) {
@@ -41,7 +43,14 @@ var createCouchDBEmitter = function (uri) {
       connect();
     });
   }
-  connect();  
+  
+  request({ uri: uri+'_changes'
+          , headers: {'content-type':'application/json'}
+          }, function (err, resp, body) {
+    if (resp.statusCode !== 200) throw new Error('Request did not return 200.\n'+body.buffer);
+    changesStream.since = JSON.parse(body).last_seq;
+    connect();
+  })
   return changesStream;
 }
 
