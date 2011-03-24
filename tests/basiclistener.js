@@ -1,4 +1,4 @@
-var dbemitter = require('./dbemitter')
+var dbemitter = require('../main')
   , request = require('request')
   , child_process = require('child_process')
   ;
