@@ -14,6 +14,7 @@ var createCouchDBEmitter = function (uri) {
   })
   
   changesStream.buffer = '';
+  changesStream.writable = true;
   changesStream.write = function (chunk) {
     
     var line
@@ -37,10 +38,7 @@ var createCouchDBEmitter = function (uri) {
     var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: changesStream.since});
     request({ uri: uri+'_changes?'+qs
             , headers: {'content-type':'application/json', connection:'keep-alive'}
-            }, function (err, resp, body) {
-      if (resp.statusCode !== 200) throw new Error('Request did not return 200.\n'+body.buffer);
-      connect();
-    }).pipe(changesStream);
+            }).pipe(changesStream);
   }
   
   request({ uri: uri+'_changes'
