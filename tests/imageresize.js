@@ -27,45 +27,39 @@ emitter.on('change', function (change) {
     
   if( attachments ) {
     for ( var attachment in attachments ) {
-      // if ( attachments[attachment].length > 1000000) {
+                      // && attachments[attachment].length > 1000000
+      if ( doc.message ) {
         if ( converted.indexOf(doc._id) == -1 ) {
+          converted.push(doc._id);
+          console.log('about to resize ' + doc._id);
           resize(db + "/" + doc._id + "/" + attachment, doc);
         }
-      // } 
+      } 
     }
   }
 })
 
 function download(uri, callback) {
-  var host = url.parse(uri).hostname
-    , filename = url.parse(uri).pathname.split("/").pop()
-    , port = url.parse(uri).port
+  var filename = url.parse(uri).pathname.split("/").pop()
     ;
-  
-  var theurl = http.createClient(port, host);
-  var requestUrl = uri;
-  sys.puts("Downloading file: " + filename);
-  var request = theurl.request('GET', requestUrl, {"host": host});
-  request.end();
-  
-  request.addListener('response', function (response) {
-    response.setEncoding("binary");
-    sys.puts("File size " + filename + ": " + response.headers['content-length'] + " bytes.");
-    var body = '';
-    response.addListener('data', function (chunk) {
-      body += chunk;
-    });
-    response.addListener("end", function() {
-      fs.writeFileSync(filename, body, 'binary');
-      callback(filename);
-    });
-  });
+  console.log(uri)
+  request({
+    encoding: 'binary',
+    uri: uri,
+  }, function (err, resp, body) {
+    if (err) throw err;
+    if (resp.statusCode !== 201) throw new Error("Could not save new image\n"+body)
+    fs.writeFileSync(filename, body, 'binary');
+    console.log('wrote ' + filename);
+    callback(filename);
+  })   
 }
 
 function resize(uri, doc) {
   download(uri, function(filename) {
     im.convert([filename, '-resize', '700', filename], 
     function(err, stdout, stderr) {
+      sys.puts("Converted: " + filename + " from " + doc._id);
       if (err) throw err;
       upload(filename, uri, doc);
     })
@@ -83,7 +77,6 @@ function upload(filename, uri, doc) {
     }, function (err, resp, body) {
       if (err) throw err;
       if (resp.statusCode !== 201) throw new Error("Could not save new image\n"+body)
-      converted.push(doc._id);
     });
   });
 }
