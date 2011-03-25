@@ -38,7 +38,6 @@ var createCouchDBEmitter = function (uri) {
     var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: changesStream.since});
     request({ uri: uri+'_changes?'+qs
             , headers: {'content-type':'application/json', connection:'keep-alive'}
-            }).pipe(changesStream);
     }).pipe(changesStream);
   }
   
