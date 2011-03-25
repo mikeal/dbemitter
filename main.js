@@ -36,12 +36,11 @@ var createCouchDBEmitter = function (uri) {
   var connect = function () {
     var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: changesStream.since});
     request({ uri: uri+'_changes?'+qs
-            , responseBodyStream: changesStream
             , headers: {'content-type':'application/json', connection:'keep-alive'}
             }, function (err, resp, body) {
       if (resp.statusCode !== 200) throw new Error('Request did not return 200.\n'+body.buffer);
       connect();
-    });
+    }).pipe(changesStream);
   }
   
   request({ uri: uri+'_changes'
