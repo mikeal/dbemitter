@@ -1,19 +1,14 @@
 var dbemitter = require('../main')
   , request = require('request')
-  , child_process = require('child_process')
   , im = require('imagemagick')
   , sys = require("sys")
-  , http = require("http")
   , url = require("url")
   , path = require("path")
   , fs = require("fs")
-  , events = require("events")
-  , base64_encode = require('base64').encode
-  , Buffer = require('buffer').Buffer
   , mimetypes = require('./mimetypes')
   ;
 
-var db = 'http://localhost:5984/pizza'
+var db = 'http://localhost:5984/monocles'
   , h = {'content-type':'application/json', 'accept':'application/json'}
   , converted = []
   ;
@@ -27,56 +22,79 @@ emitter.on('change', function (change) {
     
   if( attachments ) {
     for ( var attachment in attachments ) {
-                      // && attachments[attachment].length > 1000000
-      if ( doc.message ) {
-        if ( converted.indexOf(doc._id) == -1 ) {
-          converted.push(doc._id);
-          console.log('about to resize ' + doc._id);
-          resize(db + "/" + doc._id + "/" + attachment, doc);
+      if ( doc.message && attachments[attachment].length > 1000000 ) {
+        if ( converted.indexOf(doc._id+attachment) == -1 ) {
+          converted.push(doc._id+attachment);
+          ensureCommit(function() {
+            resize(db + "/" + doc._id + "/" + attachment, doc);
+          })
         }
       } 
     }
   }
 })
 
+function ensureCommit(callback) {
+  request({uri:db + "/_ensure_full_commit", method:'POST', headers:h}, function (err, resp, body) {
+    if (err) throw err;
+    if (resp.statusCode > 299) throw new Error("Could not check commited status\n"+body);
+    var status = JSON.parse(body);
+    if (status.ok) {
+      callback();
+    } else {
+      setTimeout(function() {
+        ensureCommit(callback)
+      }, 1000);
+    }
+  });
+}
+
 function download(uri, callback) {
   var filename = url.parse(uri).pathname.split("/").pop()
     ;
-  console.log(uri)
+  
   request({
-    encoding: 'binary',
     uri: uri,
-  }, function (err, resp, body) {
-    if (err) throw err;
-    if (resp.statusCode !== 201) throw new Error("Could not save new image\n"+body)
+    encoding: "binary"
+  }, function(err, resp, body) {
+    if(err) throw err;
+    if (resp.statusCode > 299) {
+      setTimeout(function() {
+        download(uri, callback)
+      }, 1000)
+    };
     fs.writeFileSync(filename, body, 'binary');
-    console.log('wrote ' + filename);
     callback(filename);
-  })   
+  })
 }
 
 function resize(uri, doc) {
   download(uri, function(filename) {
     im.convert([filename, '-resize', '700', filename], 
     function(err, stdout, stderr) {
-      sys.puts("Converted: " + filename + " from " + doc._id);
       if (err) throw err;
-      upload(filename, uri, doc);
+      upload(filename, db + "/" + doc._id, doc);
     })
   })
 }
 
 function upload(filename, uri, doc) {
   fs.readFile(filename, 'binary', function (er, data) {
-    if (er) return cb && cb(er);
-    request({
-      method: 'PUT',
-      encoding: 'binary',
-      uri: uri + '?rev=' + doc._rev,
-      body: data,
-    }, function (err, resp, body) {
+    var mime = mimetypes.lookup(path.extname(filename).slice(1));
+    data = new Buffer(data, 'binary').toString('base64');
+    doc._attachments[filename] = {data:data, content_type:mime};
+    var body = JSON.stringify(doc);
+    request({uri:uri, method:'PUT', body:body, headers:h}, function (err, resp, body) {
       if (err) throw err;
-      if (resp.statusCode !== 201) throw new Error("Could not save new image\n"+body)
+      if (resp.statusCode > 299) throw new Error("Could not upload converted photo\n"+body);
+      sys.puts('Resized ' + filename + " from doc " + doc._id);
     });
-  });
+  })
 }
+
+// TODO binary version (doesnt work yet -- incorrect encoding?):
+// var data = fs.readFileSync(filename, 'binary');
+// request({uri:uri + "/" + filename + "?rev=" + doc._rev, method: 'PUT', encoding: "binary", body:data, headers:{"content-type": mime}}, function (err, resp, body) {
+//   if (err) throw err;
+//   if (resp.statusCode !== 201) throw new Error("Could not push document\n"+body);
+// });
