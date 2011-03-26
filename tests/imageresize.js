@@ -19,17 +19,18 @@ emitter.on('change', function (change) {
   var doc = change.doc
     , attachments = doc._attachments
     ;
-    
+
   if( attachments ) {
     for ( var attachment in attachments ) {
-      if ( doc.message && attachments[attachment].length > 1000000 ) {
-        if ( converted.indexOf(doc._id+attachment) == -1 ) {
-          converted.push(doc._id+attachment);
+      var uniqueName = doc._id+unescape(attachment);
+      if ( typeof(doc.message) !== "undefined" && attachments[attachment].length > 1000000 ) {
+        if ( converted.indexOf(uniqueName) == -1 ) {
+          converted.push(uniqueName);
           ensureCommit(function() {
-            resize(db + "/" + doc._id + "/" + attachment, doc);
+            resize(db + "/" + doc._id + "/" + escape(unescape(attachment)), doc);
           })
         }
-      } 
+      }
     }
   }
 })
@@ -50,21 +51,20 @@ function ensureCommit(callback) {
 }
 
 function download(uri, callback) {
-  var filename = url.parse(uri).pathname.split("/").pop()
+  var filename = unescape(url.parse(uri).pathname.split("/").pop())
     ;
-  
   request({
     uri: uri,
     encoding: "binary"
   }, function(err, resp, body) {
-    if(err) throw err;
-    if (resp.statusCode > 299) {
+    if (err || resp.statusCode > 299) {
       setTimeout(function() {
         download(uri, callback)
       }, 1000)
-    };
-    fs.writeFileSync(filename, body, 'binary');
-    callback(filename);
+    } else {
+      fs.writeFileSync(filename, body, 'binary');
+      callback(filename);      
+    }
   })
 }
 
