@@ -3,7 +3,7 @@ var dbemitter = require('../main')
   , child_process = require('child_process')
   ;
 
-var db = 'http://localhost:5984/pizza'
+var db = 'http://mikeal.couchone.com/hoodies'
   , h = {'content-type':'application/json', 'accept':'application/json'}
   ;
   

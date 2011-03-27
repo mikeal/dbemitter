@@ -35,10 +35,21 @@ var createCouchDBEmitter = function (uri) {
   changesStream.end = function () {};
   
   var connect = function () {
-    var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: 0});
-    request({ uri: uri+'_changes?'+qs
-            , headers: {'content-type':'application/json', connection:'keep-alive'}
-    }).pipe(changesStream);
+    var qs = querystring.stringify(
+      {include_docs: "true"
+      , heartbeat: 5 * 1000
+      , feed: 'continuous'
+      , since: changesStream.since
+      })
+    var r = request(
+      { uri: uri+'_changes?'+qs
+      , headers: {'content-type':'application/json', connection:'keep-alive'}
+      })
+    r.pipe(changesStream);
+    r.on('end', function () {
+      connect();
+      changesStream.emit('close');
+    })
   }
   connect();
   
