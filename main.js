@@ -35,19 +35,20 @@ var createCouchDBEmitter = function (uri) {
   changesStream.end = function () {};
   
   var connect = function () {
-    var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: changesStream.since});
+    var qs = querystring.stringify({include_docs: "true", feed: 'continuous', since: 0});
     request({ uri: uri+'_changes?'+qs
             , headers: {'content-type':'application/json', connection:'keep-alive'}
     }).pipe(changesStream);
   }
+  connect();
   
-  request({ uri: uri+'_changes'
-          , headers: {'content-type':'application/json'}
-          }, function (err, resp, body) {
-    if (resp.statusCode !== 200) throw new Error('Request did not return 200.\n'+body.buffer);
-    changesStream.since = JSON.parse(body).last_seq;
-    connect();
-  })
+  // request({ uri: uri+'_changes'
+  //         , headers: {'content-type':'application/json'}
+  //         }, function (err, resp, body) {
+  //   if (resp.statusCode !== 200) throw new Error('Request did not return 200.\n'+body.buffer);
+  //   changesStream.since = JSON.parse(body).last_seq;
+  //   connect();
+  // })
 
   return changesStream;
 }

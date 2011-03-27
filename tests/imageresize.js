@@ -8,7 +8,7 @@ var dbemitter = require('../main')
   , mimetypes = require('./mimetypes')
   ;
 
-var db = 'http://localhost:5984/monocles'
+var db = 'http://YOURCOUCH/db'
   , h = {'content-type':'application/json', 'accept':'application/json'}
   , converted = []
   ;
@@ -19,11 +19,11 @@ emitter.on('change', function (change) {
   var doc = change.doc
     , attachments = doc._attachments
     ;
-
+  sys.log(change.seq + " - " + doc._id);
   if( attachments ) {
     for ( var attachment in attachments ) {
       var uniqueName = doc._id+unescape(attachment);
-      if ( typeof(doc.message) !== "undefined" && attachments[attachment].length > 1000000 ) {
+      if ( typeof(doc.message) !== "undefined" && attachments[attachment].length > 1000000 && attachment.match(/jpe?g|png/)) {
         if ( converted.indexOf(uniqueName) == -1 ) {
           converted.push(uniqueName);
           ensureCommit(function() {
