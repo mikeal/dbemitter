@@ -1,3 +1,8 @@
+/**  Resizes images attachments in place on a remote CouchDB. 
+  *  Usage: node imageresize.js http://yourcouch/db 
+  *  Author: Max Ogden (@maxogden)
+ **/
+
 var dbemitter = require('../main')
   , request = require('request')
   , im = require('imagemagick')
@@ -8,28 +13,30 @@ var dbemitter = require('../main')
   , mimetypes = require('./mimetypes')
   ;
 
-var db = 'http://YOURCOUCH/db'
+var db = process.argv[2]
   , h = {'content-type':'application/json', 'accept':'application/json'}
   , converted = []
   ;
   
 var emitter = dbemitter.createCouchDBEmitter(db);
 
-emitter.on('change', function (change) {
+emitter.on('change', function (change) {  
   var doc = change.doc
     , attachments = doc._attachments
     ;
-  sys.log(change.seq + " - " + doc._id);
-  if( attachments ) {
-    for ( var attachment in attachments ) {
-      var uniqueName = doc._id+unescape(attachment);
-      if ( typeof(doc.message) !== "undefined" && attachments[attachment].length > 1000000 && attachment.match(/jpe?g|png/)) {
-        if ( converted.indexOf(uniqueName) == -1 ) {
-          converted.push(uniqueName);
-          ensureCommit(function() {
-            resize(db + "/" + doc._id + "/" + escape(unescape(attachment)), doc);
-          })
-        }
+    
+  if ( ( doc._id.substr(0,7) === "_design" ) || ( ! attachments ) ) return;
+  
+  for ( var name in attachments ) {
+    var uniqueName = doc._id + unescape(name);      
+    if ( ( typeof(doc.message) !== "undefined" ) && ( attachments[name].length > 1000000 ) && ( name.match(/jpe?g|png/) ) ) {
+      if ( converted.indexOf(uniqueName) === -1 ) {
+        converted.push(uniqueName);
+        ensureCommit(function(uri, doc) {
+          return function() {
+            resize(uri, doc);
+          }
+        }(db + "/" + doc._id + "/" + escape(unescape(name)), doc))
       }
     }
   }
@@ -43,9 +50,9 @@ function ensureCommit(callback) {
     if (status.ok) {
       callback();
     } else {
-      setTimeout(function() {
-        ensureCommit(callback)
-      }, 1000);
+      setTimeout( function() {
+        ensureCommit( callback );
+      }, 1000 );
     }
   });
 }
